@@ -41,15 +41,20 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        status = data.strip("\r\n").split("\r\n")[0]
+        code = int(status.split()[1])
+        return code
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        body = data.strip("\r\n").split("\r\n")[-1]
+        return body
     
     def sendall(self, data):
+        print(data)
+        print(data.encode('utf-8'))
         self.socket.sendall(data.encode('utf-8'))
         
     def close(self):
@@ -59,22 +64,122 @@ class HTTPClient(object):
     def recvall(self, sock):
         buffer = bytearray()
         done = False
+        print("here")
         while not done:
             part = sock.recv(1024)
             if (part):
                 buffer.extend(part)
             else:
                 done = not part
-        return buffer.decode('utf-8')
+        print("out")
+        print(buffer)
+        res = ""
+        try:
+            res =  buffer.decode('utf-8')
+        except UnicodeDecodeError:
+            res = buffer.decode('ISO-8859-1')
+
+        return res
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        request = []
+
+        parsedURL = urllib.parse.urlparse(url)
+
+        path = parsedURL.path
+        if path == '':
+            path = '/'
+        request.append(f"GET {path} HTTP/1.1")
+
+        request.append(f"Host: {parsedURL.hostname}")
+
+        request.append("Accept: */*; charset=utf-8")
+
+        request.append("Connection: close")
+
+        if args is not None:
+            l = []
+            for k in args:
+                l.append(f"{k}={args[k]}")
+            request.append("Content-Type: application/x-www-form-urlencoded")
+            q = "&".join(l)
+            request.append(f"Content-Length: {len(q)}")
+            request.append("")
+            request.append(q)
+
+        data = "\r\n".join(request)
+        data += "\r\n\r\n"
+
+        host = parsedURL.hostname
+        port = 80
+        try:
+            port = parsedURL.port
+            if port is None:
+                port = 80
+        except ValueError:
+            port = 80
+
+        print(port)
+
+        self.connect(host, port)
+        self.sendall(data)
+        response = self.recvall(self.socket)
+        self.close()
+
+        code = self.get_code(response)
+        body = self.get_body(response)
+
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        request = []
+
+        parsedURL = urllib.parse.urlparse(url)
+
+        path = parsedURL.path
+        if path == '':
+            path = '/'
+        request.append(f"POST {path} HTTP/1.1")
+
+        request.append(f"Host: {parsedURL.hostname}")
+
+        request.append("Accept: */*; charset=utf-8")
+
+        request.append("Connection: close")
+
+        if args is not None:
+            l = []
+            for k in args:
+                l.append(f"{k}={args[k]}")
+            request.append("Content-Type: application/x-www-form-urlencoded")
+            q = "&".join(l)
+            request.append(f"Content-Length: {len(q)}")
+            request.append("")
+            request.append(q)
+        else:
+            request.append(f"Content-Length: {0}")            
+
+        data = "\r\n".join(request)
+        data += "\r\n\r\n"
+
+        host = parsedURL.hostname
+        port = 80
+        try:
+            port = parsedURL.port
+            if port is None:
+                port = 80
+        except ValueError:
+            port = 80
+
+        print(port)
+
+        self.connect(host, port)
+        self.sendall(data)
+        response = self.recvall(self.socket)
+        self.close()
+
+        code = self.get_code(response)
+        body = self.get_body(response)
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
