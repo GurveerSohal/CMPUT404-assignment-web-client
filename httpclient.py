@@ -84,10 +84,8 @@ class HTTPClient(object):
             else:
                 done = not part
         res = ""
-        try:
-            res =  buffer.decode('utf-8')
-        except UnicodeDecodeError:
-            res = buffer.decode('ISO-8859-1')
+        
+        res =  buffer.decode('utf-8')
 
         return res
 
@@ -208,7 +206,7 @@ class HTTPClient(object):
         data = "\r\n".join(request)
         data += "\r\n\r\n"
 
-        print(data)
+
         host = parsedURL.hostname
         port = 80
         try:
