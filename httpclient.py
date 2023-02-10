@@ -25,6 +25,8 @@ import re
 import urllib.parse
 import json
 
+responseForUser = ""
+
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
 
@@ -50,7 +52,17 @@ class HTTPClient(object):
         return None
 
     def get_body(self, data):
-        body = data.strip("\r\n").strip().split("\r\n")[-1]
+        data = data.strip("\r\n").strip().split("\r\n")
+        i = 0
+        while i < len(data):
+            if data[i] == '':
+                i += 1
+                break
+            i += 1
+        body = ""
+        while i < len(data):
+            body += data[i]
+            i += 1
         return body
     
     def sendall(self, data):
@@ -78,14 +90,21 @@ class HTTPClient(object):
         return res
 
     def GET(self, url, args=None):
+        global responseForUser
         request = []
 
         parsedURL = urllib.parse.urlparse(url)
 
+        if parsedURL.scheme != "http":
+            print("Include http:// in the url!")
+            sys.exit(1)
         path = parsedURL.path
         if path == '':
             path = '/'
 
+        if ' ' in path:
+            path = ''.join(path.strip().split())
+            
         queryString = "?"
         if parsedURL.query != "":
             queryString += parsedURL.query
@@ -122,12 +141,14 @@ class HTTPClient(object):
         except ValueError:
             port = 80
 
+        print(data)
+
         self.connect(host, port)
         self.sendall(data)
         response = self.recvall(self.socket)
         self.close()
 
-        print(response)
+        responseForUser = response
 
         code = self.get_code(response)
         body = self.get_body(response)
@@ -135,20 +156,19 @@ class HTTPClient(object):
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
+        global responseForUser
         request = []
 
         parsedURL = urllib.parse.urlparse(url)
 
         path = parsedURL.path
+
         if path == '':
             path = '/'
 
-        queryString = "?"
-        if parsedURL.query != "":
-            queryString += parsedURL.query
-
-        if len(queryString) > 1:
-            path += queryString
+        if parsedURL.scheme != "http":
+            print("Include http:// in the url!")
+            sys.exit(1)
 
         request.append(f"POST {path} HTTP/1.1")
 
@@ -162,17 +182,31 @@ class HTTPClient(object):
             l = []
             for k in args:
                 l.append(f"{k}={args[k]}")
-            request.append("Content-Type: application/x-www-form-urlencoded")
             q = "&".join(l)
+
+
+            if parsedURL.query != "":
+                q += '&' + parsedURL.query
+
+            request.append("Content-Type: application/x-www-form-urlencoded")
             request.append(f"Content-Length: {len(q)}")
             request.append("")
             request.append(q)
         else:
-            request.append(f"Content-Length: {0}")            
+            if parsedURL.query != "":
+                request.append("Content-Type: application/x-www-form-urlencoded")
+                q = parsedURL.query
+                request.append(f"Content-Length: {len(q)}")
+                request.append("")
+                request.append(q)
+            else:
+                request.append("Content-Type: application/x-www-form-urlencoded")
+                request.append(f"Content-Length: {0}")            
 
         data = "\r\n".join(request)
         data += "\r\n\r\n"
 
+        print(data)
         host = parsedURL.hostname
         port = 80
         try:
@@ -188,7 +222,7 @@ class HTTPClient(object):
         response = self.recvall(self.socket)
         self.close()
 
-        print(response)
+        responseForUser = response
 
         code = self.get_code(response)
         body = self.get_body(response)
@@ -204,10 +238,14 @@ if __name__ == "__main__":
     client = HTTPClient()
     command = "GET"
     print(sys.argv)
-    if (len(sys.argv) <= 1):
+    if (len(sys.argv) <= 2):
         help()
         sys.exit(1)
     elif (len(sys.argv) == 4):
-        res = client.command( sys.argv[3], sys.argv[2] )
+        args = dict(json.loads(sys.argv[3]))
+        res = client.command( sys.argv[2], sys.argv[1], args )
+        print(responseForUser)
     else:
         res = client.command( sys.argv[2] ) 
+        print(responseForUser)
+
