@@ -23,6 +23,7 @@ import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib.parse
+import json
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -49,12 +50,10 @@ class HTTPClient(object):
         return None
 
     def get_body(self, data):
-        body = data.strip("\r\n").split("\r\n")[-1]
+        body = data.strip("\r\n").strip().split("\r\n")[-1]
         return body
     
     def sendall(self, data):
-        print(data)
-        print(data.encode('utf-8'))
         self.socket.sendall(data.encode('utf-8'))
         
     def close(self):
@@ -64,15 +63,12 @@ class HTTPClient(object):
     def recvall(self, sock):
         buffer = bytearray()
         done = False
-        print("here")
         while not done:
             part = sock.recv(1024)
             if (part):
                 buffer.extend(part)
             else:
                 done = not part
-        print("out")
-        print(buffer)
         res = ""
         try:
             res =  buffer.decode('utf-8')
@@ -89,6 +85,23 @@ class HTTPClient(object):
         path = parsedURL.path
         if path == '':
             path = '/'
+
+        queryString = "?"
+        if parsedURL.query != "":
+            queryString += parsedURL.query
+
+        if args is not None:
+            l = []
+            for k in args:
+                l.append(f"{k}={args[k]}")
+            if len(queryString) == 1:
+                queryString += '&'.join(l)
+            else:
+                queryString += '&' + '&'.join(l)
+
+        if len(queryString) > 1:
+            path += queryString
+
         request.append(f"GET {path} HTTP/1.1")
 
         request.append(f"Host: {parsedURL.hostname}")
@@ -96,16 +109,6 @@ class HTTPClient(object):
         request.append("Accept: */*; charset=utf-8")
 
         request.append("Connection: close")
-
-        if args is not None:
-            l = []
-            for k in args:
-                l.append(f"{k}={args[k]}")
-            request.append("Content-Type: application/x-www-form-urlencoded")
-            q = "&".join(l)
-            request.append(f"Content-Length: {len(q)}")
-            request.append("")
-            request.append(q)
 
         data = "\r\n".join(request)
         data += "\r\n\r\n"
@@ -119,12 +122,12 @@ class HTTPClient(object):
         except ValueError:
             port = 80
 
-        print(port)
-
         self.connect(host, port)
         self.sendall(data)
         response = self.recvall(self.socket)
         self.close()
+
+        print(response)
 
         code = self.get_code(response)
         body = self.get_body(response)
@@ -139,6 +142,14 @@ class HTTPClient(object):
         path = parsedURL.path
         if path == '':
             path = '/'
+
+        queryString = "?"
+        if parsedURL.query != "":
+            queryString += parsedURL.query
+
+        if len(queryString) > 1:
+            path += queryString
+
         request.append(f"POST {path} HTTP/1.1")
 
         request.append(f"Host: {parsedURL.hostname}")
@@ -171,12 +182,13 @@ class HTTPClient(object):
         except ValueError:
             port = 80
 
-        print(port)
 
         self.connect(host, port)
         self.sendall(data)
         response = self.recvall(self.socket)
         self.close()
+
+        print(response)
 
         code = self.get_code(response)
         body = self.get_body(response)
@@ -191,10 +203,11 @@ class HTTPClient(object):
 if __name__ == "__main__":
     client = HTTPClient()
     command = "GET"
+    print(sys.argv)
     if (len(sys.argv) <= 1):
         help()
         sys.exit(1)
-    elif (len(sys.argv) == 3):
-        print(client.command( sys.argv[2], sys.argv[1] ))
+    elif (len(sys.argv) == 4):
+        res = client.command( sys.argv[3], sys.argv[2] )
     else:
-        print(client.command( sys.argv[1] ))
+        res = client.command( sys.argv[2] ) 
